@@ -4,7 +4,7 @@ const Schema = mongoose.Schema;
 const commentSchema = new Schema({
     userId: {
         type: Schema.Types.ObjectId,
-        ref: 'User', // Reference to the User model
+        ref: 'User', 
         required: true
     },
     
@@ -18,17 +18,10 @@ const commentSchema = new Schema({
     },
     pollId: {
         type: Schema.Types.ObjectId,
-        ref: 'Poll', // Reference to the Poll model
+        ref: 'Poll', 
         required: true
     },
-    parentCommentId: {
-        type: Schema.Types.ObjectId,
-        ref: 'Comment'
-    },
-    children: [{
-        type: Schema.Types.ObjectId,
-        ref: 'Comment'
-    }]
+   
 });
 
 export default mongoose.model('Comment', commentSchema);

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import Poll from '../Models/Poll'
 import Option from '../Models/Option' 
 import Vote from '../Models/Vote';
+import Comment from '../Models/Comment';
 
 
 export const createPoll = async (req: any, res: Response) => {
@@ -39,37 +40,52 @@ export const createPoll = async (req: any, res: Response) => {
 
 export const getAllPolls = async (req: any, res: Response) => {
     try {
-        // Fetch all polls and populate options
-        const polls = await Poll.find()
+      // Fetch all polls and populate options and user info
+      const polls = await Poll.find()
         .populate({
-            path: 'userId', 
-            select: 'name profilePhotoURL', 
+          path: 'userId',
+          select: 'name profilePhotoURL',
         })
         .populate('options')
         .sort({ createdAt: -1 })
         .exec();
-
-
-        // Get the user ID from the request
-        const userId = req.user._id;
-
-        // Check if the user has voted for each poll
-        const pollsWithVoteStatus = await Promise.all(
-            polls.map(async (poll) => {
-                const userVote = await Vote.findOne({ userId, pollId: poll._id }).exec();
-                return {
-                    ...poll.toObject(),
-                    hasVoted: !!userVote, // Convert to boolean
-                };
-            })
-        );
-
-        res.status(200).json(pollsWithVoteStatus);
+  
+      // Get the user ID from the request
+      const userId = req.user._id;
+  
+      // Check if the user has voted for each poll and fetch the latest comment
+      const pollsWithDetails = await Promise.all(
+        polls.map(async (poll) => {
+          const userVote = await Vote.findOne({ userId, pollId: poll._id }).exec();
+          const latestComment = await Comment.findOne({ pollId: poll._id })
+          .populate({
+            path: 'userId',
+            select: 'name',
+          })
+          .sort({ createdAt: -1 })
+          .exec();
+  
+          return {
+            ...poll.toObject(),
+            hasVoted: !!userVote, 
+            latestComment: latestComment
+              ? {
+                  _id: latestComment._id,
+                  author: latestComment.userId.name,
+                  content: latestComment.content,
+                  createdAt: latestComment.createdAt,
+                }
+              : null,
+          };
+        })
+      );
+  
+      res.status(200).json(pollsWithDetails);
     } catch (error) {
-        console.error('Error fetching polls:', error);
-        res.status(500).json({ error: 'Internal server error' });
+      console.error('Error fetching polls:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
-};
+  };
 
 export const updateVotes = async (req:any , res:Response) =>{
     try {
