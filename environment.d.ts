@@ -8,6 +8,8 @@ declare global {
       PORT:number,
       ORIGIN:string;
       PROFILE_PHOTO_URL:string;
+      IAM_USER_ACCESS_KEY:string;
+      IAM_USER_SECRET_ACCESS_KEY:string;
       ENV: 'test' | 'dev' | 'prod';
     }
   }

@@ -2,7 +2,8 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import UserService from '../Services/UserService';
-
+import User from '../Models/User';
+import * as S3service from '../Services/S3service';
 /**
  * Controller class for handling user-related operations.
  * @class
@@ -65,11 +66,38 @@ class UserController {
             const passwordMatch = await bcrypt.compare(password, existingUser.password);
 
             if (passwordMatch) {
-                const token = UserController.generateToken(existingUser.id);
-                return res.status(200).json({ message: 'Login Successful', userName: existingUser.name, token });
+                const token = UserController.generateToken(existingUser._id);
+                return res.status(200).json({ message: 'Login Successful', userName: existingUser.name, token ,profilePhotoURL:existingUser.profilePhotoURL});
             } else {
                 return res.status(401).json({ message: "Incorrect password!" });
             }
+        } catch (error:any) {
+            console.error(error);
+            return res.status(500).json({ message: "Something went wrong!", error: error.message });
+        }
+    }
+    static async getUser(req:any, res:Response):Promise<Response>{
+        try {
+            const user = await UserService.getUser({_id:req.user._id});
+            if(!user){
+                return res.status(404).json({message:"User not found"})
+            }
+            return res.status(200).json(user)
+        } catch (error:any) {
+            console.error(error);
+            return res.status(500).json({ message: "Something went wrong!", error: error.message });
+        }
+    }
+    static async updateProfilePhoto(req:any ,res:Response) : Promise<Response> {
+        try {
+            const file = req.files[0];
+            console.log(file);
+            
+            const profilePhotoURL = await S3service.uploadToS3(file,file.originalname);
+            
+            await User.findByIdAndUpdate(req.user._id, { profilePhotoURL });
+    
+            res.status(200).json({ profilePhotoURL, status: true });
         } catch (error:any) {
             console.error(error);
             return res.status(500).json({ message: "Something went wrong!", error: error.message });

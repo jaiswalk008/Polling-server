@@ -15,7 +15,7 @@ class UserService {
     static async getUser(condition: any = {}): Promise<InstanceType<typeof User> | null> {
         
         try {
-            return User.findOne(condition);
+            return  User.findOne(condition);
         } catch (error: any) {
             throw new Error(error.message);
         }

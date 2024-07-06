@@ -8,7 +8,7 @@ const authenticateMiddleware = async (req:any,res:Response,next:NextFunction) =>
         
         const result:any = jwt.verify(token, process.env.JWT_SECRET_KEY); 
         
-        const existingUser = await UserService.getUser({id:result.userId});
+        const existingUser = await UserService.getUser({_id:result.userId});
         
         if(existingUser){
             req.user = existingUser;
