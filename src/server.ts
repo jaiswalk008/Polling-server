@@ -6,7 +6,6 @@ import cors from "cors";
 import bodyParser from "body-parser";
 import {Server} from 'socket.io';
 import routes from './Routes/index'
-// import "./Models";
 import mongoose, { mongo } from "mongoose";
 
 const app  = express();
@@ -30,13 +29,13 @@ app.use(routes);
 
 // Socket.IO event handling
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
+  // console.log('User connected:', socket.id);
 
   socket.on('newComment',(data) =>{
     io.emit('newComment',data)
   })
   socket.on('vote',(data) => {
-    console.log(data)
+  
     io.emit('vote', data)
   })
 });

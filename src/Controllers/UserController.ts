@@ -2,10 +2,10 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import UserService from '../Services/UserService';
-import User from '../Models/User';
 import * as S3service from '../Services/S3service';
 import Poll from '../Models/Poll';
 import Comment from '../Models/Comment';
+
 /**
  * Controller class for handling user-related operations.
  * @class
@@ -15,6 +15,7 @@ class UserController {
      * Generates a JWT token.
      * @param {number} id - The user ID.
      * @returns {string} The generated JWT token.
+     * @throws {Error} Throws an error if JWT_SECRET_KEY is not defined in environment variables.
      */
     static generateToken(id: number): string {
         if (!process.env.JWT_SECRET_KEY) {
@@ -43,7 +44,7 @@ class UserController {
             const newUser = await UserService.createUser({ name, email, password: hashedPassword });
 
             return res.status(200).json(newUser);
-        } catch (error:any) {
+        } catch (error: any) {
             console.error(error);
             return res.status(500).json({ message: "Something went wrong!", error: error.message });
         }
@@ -69,62 +70,76 @@ class UserController {
 
             if (passwordMatch) {
                 const token = UserController.generateToken(existingUser._id);
-                return res.status(200).json({ message: 'Login Successful', userName: existingUser.name, token ,profilePhotoURL:existingUser.profilePhotoURL});
+                return res.status(200).json({ message: 'Login Successful', userName: existingUser.name, token, profilePhotoURL: existingUser.profilePhotoURL });
             } else {
                 return res.status(401).json({ message: "Incorrect password!" });
             }
-        } catch (error:any) {
+        } catch (error: any) {
             console.error(error);
             return res.status(500).json({ message: "Something went wrong!", error: error.message });
         }
     }
+
+    /**
+     * Retrieves user details along with their polls and comments.
+     * @param {Request} req - The request object.
+     * @param {Response} res - The response object.
+     * @returns {Promise<Response>} The response object with user details or an error message.
+     */
     static async getUser(req: any, res: Response): Promise<Response> {
         try {
             const user = await UserService.getUser({ _id: req.user._id });
-    
+
             if (!user) {
                 return res.status(404).json({ message: "User not found" });
             }
-    
+
             const polls = await Poll.find({ userId: req.user._id })
                 .populate('options')
                 .sort({ createdAt: -1 })
                 .exec();
-    
+
             const pollsWithComments = await Promise.all(polls.map(async (poll) => {
                 const comments = await Comment.find({ pollId: poll._id })
                     .populate('userId', 'name')
-                    .sort({ createdAt: -1 }) // Sort comments by creation date in descending order
+                    .sort({ createdAt: -1 })
                     .exec();
-                
-                const commentsWithUserNames = comments.map((comment:any )=> ({
+
+                const commentsWithUserNames = comments.map((comment: any) => ({
                     ...comment.toObject(),
-                    author: comment.userId.name // Add the name of the user who made the comment
+                    author: comment.userId.name
                 }));
-    
+
                 return {
                     ...poll.toObject(),
                     comments: commentsWithUserNames
                 };
             }));
-    
+
             return res.status(200).json({ name: user.name, email: user.email, polls: pollsWithComments });
         } catch (error: any) {
             console.error(error);
             return res.status(500).json({ message: "Something went wrong!", error: error.message });
         }
     }
-    static async updateProfilePhoto(req:any ,res:Response) : Promise<Response> {
+
+    /**
+     * Updates the profile photo of the user.
+     * @param {Request} req - The request object.
+     * @param {Response} res - The response object.
+     * @returns {Promise<Response>} The response object with the updated profile photo URL or an error message.
+     */
+    static async updateProfilePhoto(req: any, res: Response): Promise<Response> {
         try {
             const file = req.files[0];
             console.log(file);
-            
-            const profilePhotoURL = await S3service.uploadToS3(file,file.originalname);
-            
-            await User.findByIdAndUpdate(req.user._id, { profilePhotoURL });
-    
+
+            const profilePhotoURL = await S3service.uploadToS3(file, file.originalname);
+
+            await UserService.updateUser(req.user._id, { profilePhotoURL });
+
             res.status(200).json({ profilePhotoURL, status: true });
-        } catch (error:any) {
+        } catch (error: any) {
             console.error(error);
             return res.status(500).json({ message: "Something went wrong!", error: error.message });
         }

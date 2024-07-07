@@ -1,140 +1,80 @@
 import { Request, Response } from 'express';
-import Poll from '../Models/Poll'
-import Option from '../Models/Option' 
-import Vote from '../Models/Vote';
-import Comment from '../Models/Comment';
+import PollService from '../Services/PollService';
 
+/**
+ * Controller class for handling poll-related operations.
+ * @class
+ */
+class PollController {
+    /**
+     * Creates a new poll.
+     * @param {Request} req - The request object.
+     * @param {Response} res - The response object.
+     * @returns {Promise<Response>} The response object with the created poll or an error message.
+     */
+    static async createPoll(req: any, res: Response): Promise<Response> {
+        try {
+            const { question, options } = req.body;
+            const poll = await PollService.createPoll({ userId: req.user._id, question, options });
 
-export const createPoll = async (req: any, res: Response) => {
-    try {
-        const { question, options } = req.body;
-
-        console.log(options)
-        const poll = await Poll.create({
-            userId: req.user._id,
-            question,
-            options: [],
-           
-        });
-
-        // Create options for the poll
-        const optionIds = await Promise.all(options.map(async (option: { text: string, count: number }) => {
-            const createdOption = await Option.create({
-                pollId: poll._id,
-                text: option.text,
-                count: option.count
-            });
-            return createdOption;
-        }));
-
-        // Update poll with option IDs
-        poll.options = optionIds;
-        await poll.save();
-        console.log(poll);
-        res.status(201).json(poll);
-    } catch (error) {
-        console.error('Error creating poll:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-};
-
-export const getAllPolls = async (req: any, res: Response) => {
-    try {
-      // Fetch all polls and populate options and user info
-      const polls = await Poll.find()
-        .populate({
-          path: 'userId',
-          select: 'name profilePhotoURL',
-        })
-        .populate('options')
-        .sort({ createdAt: -1 })
-        .exec();
-  
-      // Get the user ID from the request
-      const userId = req.user._id;
-  
-      // Check if the user has voted for each poll and fetch the latest comment
-      const pollsWithDetails = await Promise.all(
-        polls.map(async (poll) => {
-          const userVote = await Vote.findOne({ userId, pollId: poll._id }).exec();
-          const comments = await Comment.findOne({ pollId: poll._id })
-          .populate({
-            path: 'userId',
-            select: 'name',
-          })
-          .sort({ createdAt: -1 })
-          .exec();
-  
-          return {
-            ...poll.toObject(),
-            hasVoted: !!userVote, 
-            comments: comments
-              ? [{
-                  _id: comments._id,
-                  author: comments.userId.name,
-                  content: comments.content,
-                  createdAt: comments.createdAt,
-                }]
-              : [],
-          };
-        })
-      );
-  
-      res.status(200).json(pollsWithDetails);
-    } catch (error) {
-      console.error('Error fetching polls:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  };
-
-export const updateVotes = async (req:any , res:Response) =>{
-    try {
-        const {optionId,pollId} = req.body
-        const option = await Option.findById(optionId)
-        if(!option){
-            return res.status(404).json({error:"Option not found"})
+            return res.status(201).json(poll);
+        } catch (error: any) {
+            console.error('Error creating poll:', error);
+            return res.status(500).json({ error: 'Internal server error' });
         }
-        option.count++;
-        const newVote = new Vote({optionId,userId:req.user._id,pollId});
-        await newVote.save();   
-        await option.save()
-        res.status(200).json({message:"Vote counted successfully"})
-    } catch (error) {
-        console.error('Error updating votes:', error);
-        res.status(500).json({ error: 'Internal server error' });
+    }
+
+    /**
+     * Fetches all polls.
+     * @param {Request} req - The request object.
+     * @param {Response} res - The response object.
+     * @returns {Promise<Response>} The response object with the list of polls or an error message.
+     */
+    static async getAllPolls(req: any, res: Response): Promise<Response> {
+        try {
+            const polls = await PollService.getAllPolls(req.user._id);
+            return res.status(200).json(polls);
+        } catch (error: any) {
+            console.error('Error fetching polls:', error);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
+    /**
+     * Updates votes for a specific option.
+     * @param {Request} req - The request object.
+     * @param {Response} res - The response object.
+     * @returns {Promise<Response>} The response object with a success message or an error message.
+     */
+    static async updateVotes(req: any, res: Response): Promise<Response> {
+        try {
+            const { optionId, pollId } = req.body;
+            await PollService.updateVotes(optionId, req.user._id, pollId);
+
+            return res.status(200).json({ message: "Vote counted successfully" });
+        } catch (error: any) {
+            console.error('Error updating votes:', error);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
+    /**
+     * Fetches poll details by poll ID.
+     * @param {Request} req - The request object.
+     * @param {Response} res - The response object.
+     * @returns {Promise<Response>} The response object with the poll details or an error message.
+     */
+    static async getPollDetails(req: Request, res: Response): Promise<Response> {
+        try {
+            const pollId = req.params.pollId;
+            const pollDetails = await PollService.getPollDetails(pollId);
+
+            return res.status(200).json(pollDetails);
+        } catch (error: any) {
+            console.error('Failed to fetch poll details:', error);
+            return res.status(500).json({ message: 'Failed to fetch poll details', error: error.message });
+        }
     }
 }
-export const getPollDetails = async (req: Request, res: Response) => {
-  const pollId = req.params.pollId;
 
-  try {
-      // Fetch poll details including options
-      const poll = await Poll.findById(pollId)
-      .populate({
-        path: 'userId',
-        select: 'name profilePhotoURL',
-      })
-      .populate('options')
-      .exec();
-
-      if (!poll) {
-          return res.status(404).json({ message: 'Poll not found' });
-      }
-
-      const comments = await Comment.find({ pollId })
-          .populate('userId', 'name')
-          .sort({ createdAt: -1 }) // 
-          .exec();
-
-      const commentsWithUserDetails = comments.map((comment: any) => ({
-          ...comment.toObject(),
-          author: comment.userId.name,
-              
-      }));
-
-      return res.status(200).json({ poll, comments: commentsWithUserDetails });
-  } catch (error: any) {
-      console.error(error);
-      return res.status(500).json({ message: 'Failed to fetch poll details', error: error.message });
-  }
-};
+export default PollController;

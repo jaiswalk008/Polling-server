@@ -1,23 +1,30 @@
-import { Response } from "express";
-import Comment from "../Models/Comment"
+import { Request, Response } from 'express';
+import CommentService from '../Services/CommentService';
 
-export const createComment = async (req:any , res:Response)=>{
-    try{
-        const newComment  = new Comment({...req.body , userId:req.user._id});
-        console.log(req.body)
-        await newComment.save();
-        return res.json(newComment);
+/**
+ * Controller class for handling comment-related operations.
+ * @class
+ */
+class CommentController {
+    /**
+     * Creates a new comment.
+     * @param {Request} req - The request object.
+     * @param {Response} res - The response object.
+     * @returns {Promise<Response>} The response object with the created comment or an error message.
+     */
+    static async createComment(req: any, res: Response): Promise<Response> {
+        try {
+            const { content, pollId } = req.body;
+            const comment = await CommentService.createComment({ content, pollId, userId: req.user._id });
+
+            return res.json(comment);
+        } catch (error: any) {
+            console.error('Error creating comment:', error);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
     }
-    catch(err){
-        console.log(err)
-    }
+
+   
 }
-export const getComments = async (req:any, res:Response)=>{
-    try{
-        const comments = await Comment.find({postId:req.params.postId}).sort({createdAt:-1});
-        return res.json(comments);
-    }
-    catch(err){
-        console.log(err)
-    }
-}
+
+export default CommentController;
