@@ -19,7 +19,6 @@ export const uploadToS3 = (file:any,fileName:string) =>{
       s3Bucket.upload(params , (err:any,res:any) =>{
         if(err) reject(err);
         else {
-          console.log(res);
           resolve(res.Location);
         }
       })

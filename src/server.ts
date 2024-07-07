@@ -29,7 +29,6 @@ app.use(routes);
 
 // Socket.IO event handling
 io.on('connection', (socket) => {
-  // console.log('User connected:', socket.id);
 
   socket.on('newComment',(data) =>{
     io.emit('newComment',data)
