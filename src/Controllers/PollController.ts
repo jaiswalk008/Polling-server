@@ -57,7 +57,7 @@ export const getAllPolls = async (req: any, res: Response) => {
       const pollsWithDetails = await Promise.all(
         polls.map(async (poll) => {
           const userVote = await Vote.findOne({ userId, pollId: poll._id }).exec();
-          const latestComment = await Comment.findOne({ pollId: poll._id })
+          const comments = await Comment.findOne({ pollId: poll._id })
           .populate({
             path: 'userId',
             select: 'name',
@@ -68,14 +68,14 @@ export const getAllPolls = async (req: any, res: Response) => {
           return {
             ...poll.toObject(),
             hasVoted: !!userVote, 
-            latestComment: latestComment
-              ? {
-                  _id: latestComment._id,
-                  author: latestComment.userId.name,
-                  content: latestComment.content,
-                  createdAt: latestComment.createdAt,
-                }
-              : null,
+            comments: comments
+              ? [{
+                  _id: comments._id,
+                  author: comments.userId.name,
+                  content: comments.content,
+                  createdAt: comments.createdAt,
+                }]
+              : [],
           };
         })
       );
@@ -104,3 +104,37 @@ export const updateVotes = async (req:any , res:Response) =>{
         res.status(500).json({ error: 'Internal server error' });
     }
 }
+export const getPollDetails = async (req: Request, res: Response) => {
+  const pollId = req.params.pollId;
+
+  try {
+      // Fetch poll details including options
+      const poll = await Poll.findById(pollId)
+      .populate({
+        path: 'userId',
+        select: 'name profilePhotoURL',
+      })
+      .populate('options')
+      .exec();
+
+      if (!poll) {
+          return res.status(404).json({ message: 'Poll not found' });
+      }
+
+      const comments = await Comment.find({ pollId })
+          .populate('userId', 'name')
+          .sort({ createdAt: -1 }) // 
+          .exec();
+
+      const commentsWithUserDetails = comments.map((comment: any) => ({
+          ...comment.toObject(),
+          author: comment.userId.name,
+              
+      }));
+
+      return res.status(200).json({ poll, comments: commentsWithUserDetails });
+  } catch (error: any) {
+      console.error(error);
+      return res.status(500).json({ message: 'Failed to fetch poll details', error: error.message });
+  }
+};

@@ -4,6 +4,8 @@ import jwt from 'jsonwebtoken';
 import UserService from '../Services/UserService';
 import User from '../Models/User';
 import * as S3service from '../Services/S3service';
+import Poll from '../Models/Poll';
+import Comment from '../Models/Comment';
 /**
  * Controller class for handling user-related operations.
  * @class
@@ -18,7 +20,7 @@ class UserController {
         if (!process.env.JWT_SECRET_KEY) {
             throw new Error("JWT_SECRET_KEY is not defined in environment variables");
         }
-        return jwt.sign({ userId: id }, process.env.JWT_SECRET_KEY, { expiresIn: '2d' });
+        return jwt.sign({ userId: id }, process.env.JWT_SECRET_KEY);
     }
 
     /**
@@ -76,14 +78,38 @@ class UserController {
             return res.status(500).json({ message: "Something went wrong!", error: error.message });
         }
     }
-    static async getUser(req:any, res:Response):Promise<Response>{
+    static async getUser(req: any, res: Response): Promise<Response> {
         try {
-            const user = await UserService.getUser({_id:req.user._id});
-            if(!user){
-                return res.status(404).json({message:"User not found"})
+            const user = await UserService.getUser({ _id: req.user._id });
+    
+            if (!user) {
+                return res.status(404).json({ message: "User not found" });
             }
-            return res.status(200).json(user)
-        } catch (error:any) {
+    
+            const polls = await Poll.find({ userId: req.user._id })
+                .populate('options')
+                .sort({ createdAt: -1 })
+                .exec();
+    
+            const pollsWithComments = await Promise.all(polls.map(async (poll) => {
+                const comments = await Comment.find({ pollId: poll._id })
+                    .populate('userId', 'name')
+                    .sort({ createdAt: -1 }) // Sort comments by creation date in descending order
+                    .exec();
+                
+                const commentsWithUserNames = comments.map((comment:any )=> ({
+                    ...comment.toObject(),
+                    author: comment.userId.name // Add the name of the user who made the comment
+                }));
+    
+                return {
+                    ...poll.toObject(),
+                    comments: commentsWithUserNames
+                };
+            }));
+    
+            return res.status(200).json({ name: user.name, email: user.email, polls: pollsWithComments });
+        } catch (error: any) {
             console.error(error);
             return res.status(500).json({ message: "Something went wrong!", error: error.message });
         }

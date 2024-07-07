@@ -1,25 +1,45 @@
 import dotenv from "dotenv";
 dotenv.config();
-
+import http from "http";
 import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
-
+import {Server} from 'socket.io';
 import routes from './Routes/index'
 // import "./Models";
 import mongoose, { mongo } from "mongoose";
 
-const server = express();
+const app  = express();
+const server  = http.createServer(app)
 
-server.use(
+const io = new Server(server , {
+  cors:{
+      origin:process.env.ORIGIN,
+  }
+});
+
+app.use(
   cors({
     origin: process.env.ORIGIN,
   })
 );
 
-server.use(bodyParser.json());
+app.use(bodyParser.json());
 
-server.use(routes);
+app.use(routes);
+
+// Socket.IO event handling
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
+
+  socket.on('newComment',(data) =>{
+    io.emit('newComment',data)
+  })
+  socket.on('vote',(data) => {
+    console.log(data)
+    io.emit('vote', data)
+  })
+});
 
 (async function startServer() {
   try {
